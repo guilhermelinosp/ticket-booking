@@ -63,6 +63,7 @@ func (r *Error) AddCause(field, message string) {
 	r.Causes = append(r.Causes, &Cause{Field: field, Message: message})
 }
 
+// IsType checks if the error is of a specific type
 func (r *Error) IsType(errType string) bool {
 	return r.ErrType == errType
 }
