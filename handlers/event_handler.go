@@ -17,36 +17,28 @@ import (
 	"github.com/google/uuid"
 )
 
+// EventHandler defines methods for handling event routes.
+type EventHandler interface {
+	FindAll(ctx *fiber.Ctx) error
+	FindByID(ctx *fiber.Ctx) error
+	Create(ctx *fiber.Ctx) error
+	Update(ctx *fiber.Ctx) error
+	Delete(ctx *fiber.Ctx) error
+}
+
 // EventHandler handles the event routes.
-type EventHandler struct {
+type eventHandler struct {
 	repository repositories.EventRepository
 }
 
-// NewEventHandler creates a new instance of EventHandler and sets up the event routes.
-func NewEventHandler(router fiber.Router, repository repositories.EventRepository) {
-	handler := &EventHandler{
-		repository: repository,
-	}
-
-	eventRoutes := router.Group("/api/events")
-
-	eventRoutes.Use(middlewares.Logger())
-
-	eventRoutes.Get("/", handler.FindAll)      // Retrieve all events
-	eventRoutes.Post("/", handler.Create)      // Create a new event
-	eventRoutes.Get("/:id", handler.FindByID)  // Retrieve an event by ID
-	eventRoutes.Put("/:id", handler.Update)    // Update an event by ID
-	eventRoutes.Delete("/:id", handler.Delete) // Delete an event by ID
-}
-
 // NewContext creates a new context with a timeout of 5 seconds.
-func (h *EventHandler) NewContext() (context.Context, context.CancelFunc) {
+func (h *eventHandler) newContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 5*time.Second)
 }
 
 // FindAll retrieves all events.
-func (h *EventHandler) FindAll(ctx *fiber.Ctx) error {
-	context, cancel := h.NewContext()
+func (h *eventHandler) FindAll(ctx *fiber.Ctx) error {
+	context, cancel := h.newContext()
 	defer cancel()
 
 	events, err := h.repository.FindAll(context)
@@ -59,16 +51,16 @@ func (h *EventHandler) FindAll(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
-		Status:  fiber.StatusOK,
-		Message: "Events retrieved successfully",
-		Data:    events,
-	})
+	return ctx.Status(fiber.StatusOK).JSON(responses.NewEventResponse(
+		fiber.StatusOK,
+		"Events retrieved successfully",
+		events,
+	))
 }
 
 // FindByID retrieves an event by its ID.
-func (h *EventHandler) FindByID(ctx *fiber.Ctx) error {
-	context, cancel := h.NewContext()
+func (h *eventHandler) FindByID(ctx *fiber.Ctx) error {
+	context, cancel := h.newContext()
 	defer cancel()
 
 	id, err := uuid.Parse(ctx.Params("id"))
@@ -86,16 +78,16 @@ func (h *EventHandler) FindByID(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
-		Status:  fiber.StatusOK,
-		Message: "Events retrieved successfully",
-		Data:    []*entities.Event{event},
-	})
+	return ctx.Status(fiber.StatusOK).JSON(responses.NewEventResponse(
+		fiber.StatusOK,
+		"Event retrieved successfully",
+		[]*entities.Event{event},
+	))
 }
 
 // Create creates a new event.
-func (h *EventHandler) Create(ctx *fiber.Ctx) error {
-	context, cancel := h.NewContext()
+func (h *eventHandler) Create(ctx *fiber.Ctx) error {
+	context, cancel := h.newContext()
 	defer cancel()
 
 	var request requests.EventRequest
@@ -117,16 +109,17 @@ func (h *EventHandler) Create(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to create event")
 	}
 
-	return ctx.Status(fiber.StatusCreated).JSON(&responses.BaseResponse{
-		Status:  fiber.StatusCreated,
-		Message: "Event created successfully",
-		Data:    []*entities.Event{createdEvent},
-	})
+	return ctx.Status(fiber.StatusCreated).JSON(
+		responses.NewEventResponse(
+			fiber.StatusCreated,
+			"Event created successfully",
+			[]*entities.Event{createdEvent},
+		))
 }
 
 // Update updates an event by its ID.
-func (h *EventHandler) Update(ctx *fiber.Ctx) error {
-	context, cancel := h.NewContext()
+func (h *eventHandler) Update(ctx *fiber.Ctx) error {
+	context, cancel := h.newContext()
 	defer cancel()
 
 	id, err := uuid.Parse(ctx.Params("id"))
@@ -168,16 +161,17 @@ func (h *EventHandler) Update(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to update event")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
-		Status:  fiber.StatusOK,
-		Message: "Event updated successfully",
-		Data:    []*entities.Event{updatedEvent},
-	})
+	return ctx.Status(fiber.StatusOK).JSON(
+		responses.NewEventResponse(
+			fiber.StatusOK,
+			"Event updated successfully",
+			[]*entities.Event{updatedEvent},
+		))
 }
 
 // Delete deletes an event by its ID.
-func (h *EventHandler) Delete(ctx *fiber.Ctx) error {
-	context, cancel := h.NewContext()
+func (h *eventHandler) Delete(ctx *fiber.Ctx) error {
+	context, cancel := h.newContext()
 	defer cancel()
 
 	id, err := uuid.Parse(ctx.Params("id"))
@@ -201,8 +195,29 @@ func (h *EventHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to delete event")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
-		Status:  fiber.StatusOK,
-		Message: "Event deleted successfully",
-	})
+	return ctx.Status(fiber.StatusOK).JSON(
+		responses.NewEventResponse(
+			fiber.StatusOK,
+			"Event deleted successfully",
+			nil,
+		))
+}
+
+// NewEventHandler creates a new instance of EventHandler and sets up the event routes.
+func NewEventHandler(router fiber.Router, repository repositories.EventRepository) EventHandler {
+	handler := &eventHandler{
+		repository: repository,
+	}
+
+	eventRoutes := router.Group("/api/events")
+
+	eventRoutes.Use(middlewares.Logger())
+
+	eventRoutes.Get("/", handler.FindAll)      // Retrieve all events
+	eventRoutes.Post("/", handler.Create)      // Create a new event
+	eventRoutes.Get("/:id", handler.FindByID)  // Retrieve an event by ID
+	eventRoutes.Put("/:id", handler.Update)    // Update an event by ID
+	eventRoutes.Delete("/:id", handler.Delete) // Delete an event by ID
+
+	return handler
 }

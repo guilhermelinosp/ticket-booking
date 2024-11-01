@@ -40,8 +40,13 @@ func main() {
 		ServerHeader: "Fiber",
 	})
 
+	// Initialize repositories
+	eventRepo := repositories.NewEventRepository(reader, writer)
+	ticketRepo := repositories.NewTicketRepository(reader, writer)
+
 	// Set up handlers
-	handlers.NewEventHandler(app, repositories.NewEventRepository(reader, writer))
+	handlers.NewEventHandler(app, eventRepo)
+	handlers.NewTicketHandler(app, ticketRepo, eventRepo)
 
 	// Start the server on the specified port (defaulting to 3000)
 	port := ":3000" // You can replace with your port variable from envConfig.ServerPort

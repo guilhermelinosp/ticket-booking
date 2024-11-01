@@ -31,7 +31,8 @@ func NewEventRepository(reader, writer *sqlx.DB) EventRepository {
 
 func (r *eventRepository) FindAll(ctx context.Context) ([]*entities.Event, error) {
 	var events []*entities.Event
-	if err := r.reader.SelectContext(ctx, &events, "SELECT * FROM events"); err != nil {
+	query := `SELECT * FROM events`
+	if err := r.reader.SelectContext(ctx, &events, query); err != nil {
 		logs.Error("EventRepository.FindAll: Failed to retrieve events", err)
 		return nil, err
 	}
@@ -41,7 +42,8 @@ func (r *eventRepository) FindAll(ctx context.Context) ([]*entities.Event, error
 
 func (r *eventRepository) FindByID(ctx context.Context, id uuid.UUID) (*entities.Event, error) {
 	event := new(entities.Event)
-	if err := r.reader.GetContext(ctx, event, "SELECT * FROM events WHERE id = $1", id); err != nil {
+	query := `SELECT * FROM events WHERE id = $1`
+	if err := r.reader.GetContext(ctx, event, query, id); err != nil {
 		logs.Error("EventRepository.FindByID: Failed to retrieve event by ID", err)
 		return nil, err
 	}
@@ -70,7 +72,8 @@ func (r *eventRepository) Update(ctx context.Context, event *entities.Event) (*e
 }
 
 func (r *eventRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	if _, err := r.writer.ExecContext(ctx, "DELETE FROM events WHERE id = $1", id); err != nil {
+	query := `DELETE FROM events WHERE id = $1`
+	if _, err := r.writer.ExecContext(ctx, query, id); err != nil {
 		logs.Error("EventRepository.Delete: Failed to delete event", err)
 		return err
 	}

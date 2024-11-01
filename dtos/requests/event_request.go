@@ -24,6 +24,5 @@ func NewEventRequest(title, location string, date time.Time) *EventRequest {
 
 // Validate validates the EventRequest fields.
 func (e *EventRequest) Validate() error {
-	validate := validator.New()
-	return validate.Struct(e)
+	return validator.New().Struct(e)
 }
