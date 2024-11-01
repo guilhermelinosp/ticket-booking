@@ -7,6 +7,7 @@ import (
 	"ticket-booking/repositories"
 
 	"github.com/gofiber/fiber/v2"
+
 	"github.com/joho/godotenv"
 )
 
@@ -39,7 +40,6 @@ func main() {
 		ServerHeader: "Fiber",
 	})
 
-	// Initialize repositories
 	eventRepository := repositories.NewEventRepository(reader, writer)
 
 	// Set up handlers
