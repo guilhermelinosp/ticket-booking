@@ -2,7 +2,6 @@ package errs
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -52,10 +51,6 @@ func NewConflict(message string) *Error {
 	return NewError(message, "conflict", http.StatusConflict)
 }
 
-func (r *Error) Error() string {
-	return fmt.Sprintf("Error [%d - %s]: %s", r.Code, r.Error, r.Message)
-}
-
 func (r *Error) ToJSON() string {
 	jsonData, err := json.Marshal(r)
 	if err != nil {
@@ -68,7 +63,6 @@ func (r *Error) AddCause(field, message string) {
 	r.Causes = append(r.Causes, &Cause{Field: field, Message: message})
 }
 
-// IsType checks if the error is of a specific type
 func (r *Error) IsType(errType string) bool {
 	return r.ErrType == errType
 }
