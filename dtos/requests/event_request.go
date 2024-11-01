@@ -2,8 +2,11 @@ package requests
 
 import (
 	"time"
+
+	"github.com/go-playground/validator/v10"
 )
 
+// EventRequest represents an event request.
 type EventRequest struct {
 	Title    string    `json:"title" validate:"required,min=3,max=100"`
 	Date     time.Time `json:"date" validate:"required"`
@@ -17,4 +20,10 @@ func NewEventRequest(title, location string, date time.Time) *EventRequest {
 		Location: location,
 		Date:     date,
 	}
+}
+
+// Validate validates the EventRequest fields.
+func (e *EventRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(e)
 }

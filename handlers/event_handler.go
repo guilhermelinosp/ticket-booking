@@ -86,7 +86,7 @@ func (h *EventHandler) FindByID(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
 	}
 
-  return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
+	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
 		Status:  fiber.StatusOK,
 		Message: "Events retrieved successfully",
 		Data:    []*entities.Event{event},
@@ -100,6 +100,12 @@ func (h *EventHandler) Create(ctx *fiber.Ctx) error {
 
 	var request requests.EventRequest
 	if err := ctx.BodyParser(&request); err != nil {
+		logs.Error("EventHandler.Create: Failed to parse request body", err)
+		return errs.NewBadRequest(ctx, "Invalid parameter")
+	}
+
+	// Validate the request
+	if err := request.Validate(); err != nil {
 		logs.Error("EventHandler.Create: Failed to parse request body", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
@@ -162,7 +168,7 @@ func (h *EventHandler) Update(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to update event")
 	}
 
-  return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
+	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
 		Status:  fiber.StatusOK,
 		Message: "Event updated successfully",
 		Data:    []*entities.Event{updatedEvent},
@@ -195,7 +201,7 @@ func (h *EventHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to delete event")
 	}
 
-  return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
+	return ctx.Status(fiber.StatusOK).JSON(&responses.BaseResponse{
 		Status:  fiber.StatusOK,
 		Message: "Event deleted successfully",
 	})
