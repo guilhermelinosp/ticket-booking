@@ -8,7 +8,7 @@
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
+# Test binary, built with `gos test -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE
@@ -25,3 +25,14 @@ go.work.sum
 .env
 bin/
 .vscode/
+.odea/
+.idea/
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+logs

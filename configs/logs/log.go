@@ -2,7 +2,9 @@ package logs
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -13,10 +15,14 @@ var (
 )
 
 func init() {
+	// Cria a pasta de logs se não existir
+	createLogDir()
+
+	// Configura o logger para registrar requisições e erros em um único arquivo
 	logConfig := zap.Config{
-		OutputPaths: []string{getOutputLogs()},
 		Level:       zap.NewAtomicLevelAt(getLogLevel()),
 		Encoding:    "json",
+		OutputPaths: []string{getCombinedLogFile()},
 		EncoderConfig: zapcore.EncoderConfig{
 			MessageKey:   "message",
 			LevelKey:     "level",
@@ -32,6 +38,29 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func createLogDir() {
+	// Define o caminho do diretório de logs
+	logDir := "logs"
+
+	// Tenta criar o diretório de logs, se não existir
+	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
+		panic("failed to create logs directory: " + err.Error())
+	}
+}
+
+func Sync() {
+	_ = log.Sync()
+}
+
+func Request(method, path string, status int, duration string) {
+	log.Info("HTTP Request",
+		zap.String("method", method),
+		zap.String("path", path),
+		zap.Int("status", status),
+		zap.String("duration", duration),
+	)
 }
 
 func Info(message string, tags ...zap.Field) {
@@ -61,13 +90,10 @@ func Fatal(message string, err error, tags ...zap.Field) {
 	_ = log.Sync()
 }
 
-func getOutputLogs() string {
-	output := strings.TrimSpace(os.Getenv("LOG_OUTPUT"))
-	if output == "" {
-		return "stdout"
-	}
-
-	return strings.ToLower(output)
+func getCombinedLogFile() string {
+	// Gera o nome do arquivo de log baseado na data atual
+	date := time.Now().Format("20060102")     // Formato: YYYYMMDD
+	return filepath.Join("logs", date+".log") // Define o caminho do log com apenas YYYYMMDD.log
 }
 
 func getLogLevel() zapcore.Level {

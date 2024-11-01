@@ -1,15 +1,16 @@
 package errs
 
 import (
-	"encoding/json"
 	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // Error represents an error response.
 type Error struct {
-	Message string   `json:"message"`
+	Status  int      `json:"status"`
 	ErrType string   `json:"error"`
-	Code    int      `json:"code"`
+	Message string   `json:"message"`
 	Causes  []*Cause `json:"causes,omitempty"`
 }
 
@@ -19,61 +20,47 @@ type Cause struct {
 	Message string `json:"message"`
 }
 
-// NewError creates a new Error instance with optional causes as pointers.
-func NewError(message, error string, code int, causes ...*Cause) *Error {
+// NewError creates a new Error instance with optional causes.
+func NewError(message, errType string, status int, causes ...*Cause) *Error {
 	return &Error{
+		Status:  status,
+		ErrType: errType,
 		Message: message,
-		ErrType: error,
-		Code:    code,
-		Causes:  append([]*Cause{}, causes...), // Initialize as empty slice if no causes are provided
+		Causes:  append([]*Cause{}, causes...),
 	}
 }
 
-// NewValidationError creates a new validation error instance.
-func NewValidationError(message string, causes []*Cause) *Error {
-	return NewError(message, "validation_error", http.StatusBadRequest, causes...)
+// NewBadRequest creates a bad request error response.
+func NewBadRequest(ctx *fiber.Ctx, message string) error {
+	err := NewError(message, "bad_request_error", http.StatusBadRequest)
+	return ctx.Status(http.StatusBadRequest).JSON(err)
 }
 
-// NewBadRequest creates a new bad request error instance.
-func NewBadRequest(message string) *Error {
-	return NewError(message, "bad_request", http.StatusBadRequest)
+// NewValidationError creates a validation error with causes.
+func NewValidationError(ctx *fiber.Ctx, message string, causes []*Cause) error {
+	err := NewError(message, "validation_error", http.StatusBadRequest, causes...)
+	return ctx.Status(http.StatusBadRequest).JSON(err)
 }
 
-// NewNotFound creates a new not found error instance.
-func NewNotFound(message string) *Error {
-	return NewError(message, "not_found", http.StatusNotFound)
+// NewNotFound creates a not found error response.
+func NewNotFound(ctx *fiber.Ctx, message string) error {
+	err := NewError(message, "not_found_error", http.StatusNotFound)
+	return ctx.Status(http.StatusNotFound).JSON(err)
 }
 
-// NewInternalServerError creates a new internal server error instance.
-func NewInternalServerError(message string) *Error {
-	return NewError(message, "internal_server_error", http.StatusInternalServerError)
+// NewInternalServerError creates an internal server error response.
+func NewInternalServerError(ctx *fiber.Ctx, message string) error {
+	err := NewError(message, "internal_server_error", http.StatusInternalServerError)
+	return ctx.Status(http.StatusInternalServerError).JSON(err)
 }
 
-// NewUnauthorized creates a new unauthorized error instance.
-func NewUnauthorized(message string) *Error {
-	return NewError(message, "unauthorized", http.StatusUnauthorized)
-}
-
-// NewConflict creates a new conflict error instance.
-func NewConflict(message string) *Error {
-	return NewError(message, "conflict", http.StatusConflict)
-}
-
-// ToJSON converts the error instance to a JSON string.
-func (r *Error) ToJSON() string {
-	jsonData, err := json.Marshal(r)
-	if err != nil {
-		return ""
-	}
-	return string(jsonData)
+// NewUnauthorized creates an unauthorized error response.
+func NewUnauthorized(ctx *fiber.Ctx, message string) error {
+	err := NewError(message, "unauthorized_error", http.StatusUnauthorized)
+	return ctx.Status(http.StatusUnauthorized).JSON(err)
 }
 
 // AddCause appends a new cause to the error instance.
 func (r *Error) AddCause(field, message string) {
 	r.Causes = append(r.Causes, &Cause{Field: field, Message: message})
-}
-
-// IsType checks if the error type matches the provided type.
-func (r *Error) IsType(errType string) bool {
-	return r.ErrType == errType
 }

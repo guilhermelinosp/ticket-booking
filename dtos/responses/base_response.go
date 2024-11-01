@@ -1,12 +1,18 @@
 package responses
 
+import (
+	"ticket-booking/entities"
+)
+
+// BaseResponse is the base response for all responses.
 type BaseResponse struct {
-	Status  string           `json:"status"`
-	Message string           `json:"message"`
-	Data    []*EventResponse `json:"data,omitempty"`
+	Status  int               `json:"status"`
+	Message string            `json:"message"`
+	Data    []*entities.Event `json:"data,omitempty"`
 }
 
-func NewBaseResponse(status, message string, data []*EventResponse) *BaseResponse {
+// NewBaseResponse creates a new instance of BaseResponse.
+func NewBaseResponse(status int, message string, data []*entities.Event) *BaseResponse {
 	return &BaseResponse{
 		Status:  status,
 		Message: message,
