@@ -1,17 +1,24 @@
 package responses
 
-import "ticket-booking/entities"
+import (
+	"ticket-booking/entities"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 type TicketResponse struct {
-	Status  int                `json:"status"`
-	Message string             `json:"message"`
-	Data    []*entities.Ticket `json:"data,omitempty"`
+	Status  int       `json:"status"`
+	Message string    `json:"message"`
+	Data    fiber.Map `json:"data,omitempty"`
 }
 
-func NewTicketResponse(status int, message string, data []*entities.Ticket) *TicketResponse {
+func NewTicketResponse(status int, message string, tickets []*entities.Ticket, QRCode []byte) *TicketResponse {
 	return &TicketResponse{
 		Status:  status,
 		Message: message,
-		Data:    data,
+		Data: fiber.Map{
+			"tickets": tickets,
+			"qrcode":  QRCode,
+		},
 	}
 }

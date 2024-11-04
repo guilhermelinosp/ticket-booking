@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"strconv"
 	"ticket-booking/configs/errs"
 	"ticket-booking/configs/logs"
 	"ticket-booking/dtos/requests"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 )
 
 // EventHandler defines methods for handling event routes.
@@ -54,6 +54,10 @@ func (h *eventHandler) FindAll(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
 	}
 
+	if len(events) == 0 {
+		return errs.NewNotFound(ctx, "No events found")
+	}
+
 	return ctx.Status(fiber.StatusOK).JSON(responses.NewEventResponse(
 		fiber.StatusOK,
 		"Events retrieved successfully",
@@ -66,7 +70,7 @@ func (h *eventHandler) FindByID(ctx *fiber.Ctx) error {
 	context, cancel := h.newContext()
 	defer cancel()
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
 		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
@@ -106,17 +110,16 @@ func (h *eventHandler) Create(ctx *fiber.Ctx) error {
 	}
 
 	newEvent := entities.NewEvent(request.Title, request.Location, request.Date)
-	createdEvent, err := h.repository.Create(context, newEvent)
+	err := h.repository.Create(context, newEvent)
 	if err != nil {
 		logs.Error("EventHandler.Create: Failed to create event", err)
 		return errs.NewInternalServerError(ctx, "Failed to create event")
 	}
 
 	return ctx.Status(fiber.StatusCreated).JSON(
-		responses.NewEventResponse(
+		responses.NewBaseResponse(
 			fiber.StatusCreated,
 			"Event created successfully",
-			[]*entities.Event{createdEvent},
 		))
 }
 
@@ -125,9 +128,9 @@ func (h *eventHandler) Update(ctx *fiber.Ctx) error {
 	context, cancel := h.newContext()
 	defer cancel()
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
-		logs.Error("EventHandler.Update: Invalid ID parameter", err)
+		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
@@ -158,17 +161,16 @@ func (h *eventHandler) Update(ctx *fiber.Ctx) error {
 
 	event.UpdatedAt = time.Now()
 
-	updatedEvent, err := h.repository.Update(context, event)
+	err = h.repository.Update(context, event)
 	if err != nil {
 		logs.Error("EventHandler.Update: Failed to update event", err)
 		return errs.NewInternalServerError(ctx, "Failed to update event")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(
-		responses.NewEventResponse(
-			fiber.StatusOK,
+	return ctx.Status(fiber.StatusNoContent).JSON(
+		responses.NewBaseResponse(
+			fiber.StatusNoContent,
 			"Event updated successfully",
-			[]*entities.Event{updatedEvent},
 		))
 }
 
@@ -177,9 +179,9 @@ func (h *eventHandler) Delete(ctx *fiber.Ctx) error {
 	context, cancel := h.newContext()
 	defer cancel()
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
-		logs.Error("EventHandler.Delete: Invalid ID parameter", err)
+		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
@@ -198,11 +200,10 @@ func (h *eventHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to delete event")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(
-		responses.NewEventResponse(
-			fiber.StatusOK,
+	return ctx.Status(fiber.StatusNoContent).JSON(
+		responses.NewBaseResponse(
+			fiber.StatusNoContent,
 			"Event deleted successfully",
-			nil,
 		))
 }
 

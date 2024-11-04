@@ -2,12 +2,10 @@ package entities
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type Event struct {
-	ID        uuid.UUID `db:"id" json:"id" valid:"uuid"`
+	ID        uint64    `db:"id" json:"id" valid:"uuid"`
 	Title     string    `db:"title" json:"title" valid:"string,required"`
 	Location  string    `db:"location" json:"location" valid:"string,required"`
 	Date      time.Time `db:"date" json:"date" valid:"required"`
@@ -17,7 +15,6 @@ type Event struct {
 
 func NewEvent(title, location string, date time.Time) *Event {
 	return &Event{
-		ID:        uuid.New(),
 		Title:     title,
 		Location:  location,
 		Date:      date,

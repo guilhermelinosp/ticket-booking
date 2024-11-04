@@ -9,7 +9,7 @@ import (
 )
 
 type AccountRepository interface {
-	SignUp(ctx context.Context, auth *entities.Account) (*entities.Account, error)
+	SignUp(ctx context.Context, auth *entities.Account) error
 	FindByEmail(ctx context.Context, email string) (*entities.Account, error)
 }
 
@@ -22,14 +22,14 @@ func NewAccountRepository(reader, writer *sqlx.DB) AccountRepository {
 	return &accountRepository{reader: reader, writer: writer}
 }
 
-func (r *accountRepository) SignUp(ctx context.Context, account *entities.Account) (*entities.Account, error) {
+func (r *accountRepository) SignUp(ctx context.Context, account *entities.Account) error {
 	query := `INSERT INTO accounts (id, name, email, password, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
 	if _, err := r.writer.ExecContext(ctx, query, account.ID, account.Name, account.Email, account.Password, account.CreatedAt, account.UpdatedAt); err != nil {
 		logs.Error("AuthRepository.SignUp: Failed to create auth", err)
-		return nil, err
+		return err
 	}
 
-	return account, nil
+	return nil
 }
 
 func (r *accountRepository) FindByEmail(ctx context.Context, email string) (*entities.Account, error) {

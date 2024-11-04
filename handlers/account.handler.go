@@ -59,17 +59,16 @@ func (h *authHandler) SignUp(ctx *fiber.Ctx) error {
 
 	newAccount := entities.NewAccount(request.Name, request.Email, hashedPassword)
 
-	account, err := h.repository.SignUp(context, newAccount)
+	err = h.repository.SignUp(context, newAccount)
 	if err != nil {
 		logs.Error("AuthHandler.SignUp: Failed to create user", err)
 		return errs.NewInternalServerError(ctx, "Failed to sign up")
 	}
 
 	return ctx.Status(fiber.StatusCreated).JSON(
-		responses.NewSignUpResponse(
+		responses.NewBaseResponse(
 			fiber.StatusCreated,
 			"Sign-up successful",
-			[]*entities.Account{account},
 		))
 }
 

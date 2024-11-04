@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strconv"
 	"strings"
 	"ticket-booking/configs/errs"
 	"ticket-booking/configs/logs"
@@ -15,7 +17,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"github.com/skip2/go-qrcode"
 )
 
 type TicketHandler interface {
@@ -48,9 +50,9 @@ func (t *ticketHandler) Validate(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
-		logs.Error("TicketHandler.Validate: Invalid ID parameter", err)
+		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
@@ -60,7 +62,7 @@ func (t *ticketHandler) Validate(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	ticket, err := t.ticketRepo.FindByID(context, id, accountID)
+	ticket, err := t.ticketRepo.FindByID(context, accountID, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errs.NewNotFound(ctx, "Ticket not found")
@@ -79,10 +81,9 @@ func (t *ticketHandler) Validate(ctx *fiber.Ctx) error {
 	t.ticketRepo.Validate(context, ticket)
 
 	return ctx.Status(fiber.StatusNoContent).JSON(
-		responses.NewTicketResponse(
+		responses.NewBaseResponse(
 			fiber.StatusNoContent,
 			"Ticket updated successfully",
-			[]*entities.Ticket{},
 		))
 }
 
@@ -97,9 +98,9 @@ func (t *ticketHandler) Create(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
-		logs.Error("TicketHandler.Create: Invalid ID parameter", err)
+		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
@@ -112,19 +113,16 @@ func (t *ticketHandler) Create(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
 	}
 
-	createdTicket, err := t.ticketRepo.Create(context, entities.NewTicket(event.ID, accountID))
+	err = t.ticketRepo.Create(context, entities.NewTicket(event.ID, accountID))
 	if err != nil {
 		logs.Error("TicketHandler.Create: Failed to create Ticket", err)
 		return errs.NewInternalServerError(ctx, "Failed to create Ticket")
 	}
 
-	createdTicket.Event = event
-
 	return ctx.Status(fiber.StatusCreated).JSON(
-		responses.NewTicketResponse(
+		responses.NewBaseResponse(
 			fiber.StatusCreated,
 			"Ticket created successfully",
-			[]*entities.Ticket{createdTicket},
 		))
 }
 
@@ -139,13 +137,13 @@ func (t *ticketHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
-		logs.Error("TicketHandler.Delete: Invalid ID parameter", err)
+		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	ticket, err := t.ticketRepo.FindByID(context, id, accountID)
+	ticket, err := t.ticketRepo.FindByID(context, accountID, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errs.NewNotFound(ctx, "Ticket not found")
@@ -154,17 +152,16 @@ func (t *ticketHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve tickets")
 	}
 
-	err = t.ticketRepo.Delete(context, ticket.ID, ticket.AccountID)
+	err = t.ticketRepo.Delete(context, ticket.AccountID, ticket.ID)
 	if err != nil {
 		logs.Error("TicketHandler.Delete: Failed to delete ticket", err)
 		return errs.NewInternalServerError(ctx, "Failed to delete ticket")
 	}
 
-	return ctx.Status(fiber.StatusOK).JSON(
-		responses.NewTicketResponse(
-			fiber.StatusOK,
+	return ctx.Status(fiber.StatusNoContent).JSON(
+		responses.NewBaseResponse(
+			fiber.StatusNoContent,
 			"Ticket deleted successfully",
-			nil,
 		))
 }
 
@@ -210,6 +207,7 @@ func (t *ticketHandler) FindAll(ctx *fiber.Ctx) error {
 		fiber.StatusOK,
 		"Tickets retrieved successfully",
 		tickets,
+		nil,
 	))
 }
 
@@ -224,19 +222,29 @@ func (t *ticketHandler) FindByID(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	id, err := uuid.Parse(ctx.Params("id"))
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64) // or 32 if it's a smaller range
 	if err != nil {
-		logs.Error("TicketHandler.FindByID: Invalid ID parameter", err)
+		logs.Error("EventHandler.FindByID: Invalid ID parameter", err)
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	ticket, err := t.ticketRepo.FindByID(context, id, accountID)
+	ticket, err := t.ticketRepo.FindByID(context, accountID, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errs.NewNotFound(ctx, "Ticket not found")
 		}
 		logs.Error("TicketHandler.FindByID: Failed to retrieve ticket by ID", err)
 		return errs.NewInternalServerError(ctx, "Failed to retrieve tickets")
+	}
+
+	qr, err := qrcode.Encode(
+		fmt.Sprintf("ticketId:%v,ownerId:%v", id, accountID),
+		qrcode.Medium,
+		256,
+	)
+	if err != nil {
+		logs.Error("TicketHandler.FindByID: Failed to generate QR code", err)
+		return errs.NewInternalServerError(ctx, "Failed to generate QR code")
 	}
 
 	event, err := t.eventRepo.FindByID(context, ticket.EventID)
@@ -253,7 +261,8 @@ func (t *ticketHandler) FindByID(ctx *fiber.Ctx) error {
 	return ctx.Status(fiber.StatusOK).JSON(responses.NewTicketResponse(
 		fiber.StatusOK,
 		"Ticket retrieved successfully",
-		[]*entities.Ticket{ticket},
+		[]*entities.Ticket{ticket}, // Pass slice of tickets
+		qr,
 	))
 }
 
@@ -269,7 +278,7 @@ func NewTicketHandler(router fiber.Router, ticketRepo repositories.TicketReposit
 	ticketRoutes.Use(middlewares.Logger())
 	ticketRoutes.Use(middlewares.Auth(tokenization))
 
-	ticketRoutes.Get("/", handler.FindAll)   
+	ticketRoutes.Get("/", handler.FindAll)
 	ticketRoutes.Post("/:id", handler.Create)   // Create a new Ticket
 	ticketRoutes.Get("/:id", handler.FindByID)  // Retrieve an Ticket by ID
 	ticketRoutes.Delete("/:id", handler.Delete) // Delete an Ticket by ID

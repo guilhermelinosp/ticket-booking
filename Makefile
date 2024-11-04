@@ -1,6 +1,11 @@
-start:
-	@docker compose up --build
+build:
+	go build -o app
 
-stop:
-	@docker-compose rm -v --force --stop
-	@docker rmi ticket-booking
+lint:
+	golangci-lint run
+
+test:
+	go test ./...
+
+run:
+	go run main.go

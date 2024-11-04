@@ -17,5 +17,3 @@ func NewEventResponse(status int, message string, data []*entities.Event) *Event
 		Data:    data,
 	}
 }
-
-
