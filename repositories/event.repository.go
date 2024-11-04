@@ -9,7 +9,6 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// EventRepository defines methods for accessing events data.
 type EventRepository interface {
 	FindAll(ctx context.Context) ([]*entities.Event, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*entities.Event, error)
@@ -18,13 +17,11 @@ type EventRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-// eventRepository implements EventRepository.
 type eventRepository struct {
 	reader *sqlx.DB
 	writer *sqlx.DB
 }
 
-// NewEventRepository initializes a new repository for events.
 func NewEventRepository(reader, writer *sqlx.DB) EventRepository {
 	return &eventRepository{reader: reader, writer: writer}
 }

@@ -5,6 +5,7 @@ import (
 	"ticket-booking/configs/logs"
 	"ticket-booking/handlers"
 	"ticket-booking/repositories"
+	"ticket-booking/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
@@ -40,16 +41,20 @@ func main() {
 		ServerHeader: "Fiber",
 	})
 
+	tokenization := services.NewTokenization()
+	cryptography := services.NewCryptography()
+
 	// Initialize repositories
 	eventRepo := repositories.NewEventRepository(reader, writer)
 	ticketRepo := repositories.NewTicketRepository(reader, writer)
+	authRepo := repositories.NewAccountRepository(reader, writer)
 
 	// Set up handlers
-	handlers.NewEventHandler(app, eventRepo)
-	handlers.NewTicketHandler(app, ticketRepo, eventRepo)
+	handlers.NewEventHandler(app, eventRepo, tokenization)
+	handlers.NewTicketHandler(app, ticketRepo, eventRepo, tokenization)
+	handlers.NewAuthHandler(app, authRepo, tokenization, cryptography)
 
-	// Start the server on the specified port (defaulting to 3000)
-	port := ":3000" // You can replace with your port variable from envConfig.ServerPort
+	port := ":3000"
 	logs.Info("Starting server on port", zap.String("port", port))
 	if err := app.Listen(port); err != nil {
 		logs.Fatal("Error starting server", err)

@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"ticket-booking/configs/errs"
 	"ticket-booking/configs/logs"
 	"ticket-booking/dtos/requests"
@@ -10,13 +11,13 @@ import (
 	"ticket-booking/entities"
 	"ticket-booking/middlewares"
 	"ticket-booking/repositories"
+	"ticket-booking/services"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
-// TicketHandler defines methods for handling Ticket routes.
 type TicketHandler interface {
 	FindAll(ctx *fiber.Ctx) error
 	FindByID(ctx *fiber.Ctx) error
@@ -25,21 +26,27 @@ type TicketHandler interface {
 	Validate(ctx *fiber.Ctx) error
 }
 
-// TicketHandler handles the Ticket routes.
 type ticketHandler struct {
-	ticketRepo repositories.TicketRepository
-	eventRepo  repositories.EventRepository
+	ticketRepo   repositories.TicketRepository
+	eventRepo    repositories.EventRepository
+	tokenization services.Tokenization
+	cryptography services.Cryptography
 }
 
-// NewContext creates a new context with a timeout of 5 seconds.
 func (t *ticketHandler) newContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 5*time.Second)
 }
 
-// Valider implements TicketHandler.
 func (t *ticketHandler) Validate(ctx *fiber.Ctx) error {
 	context, cancel := t.newContext()
 	defer cancel()
+
+	token := strings.TrimPrefix(ctx.Get("Authorization"), "Bearer ")
+	accountID, err := t.tokenization.GetAccountID(token)
+	if err != nil {
+		logs.Error("TicketHandler.Validate: Invalid ID parameter", err)
+		return errs.NewBadRequest(ctx, "Invalid parameter")
+	}
 
 	id, err := uuid.Parse(ctx.Params("id"))
 	if err != nil {
@@ -53,7 +60,7 @@ func (t *ticketHandler) Validate(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	event, err := t.ticketRepo.FindByID(context, id)
+	ticket, err := t.ticketRepo.FindByID(context, id, accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errs.NewNotFound(ctx, "Ticket not found")
@@ -62,31 +69,33 @@ func (t *ticketHandler) Validate(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve tickets")
 	}
 
-	if event.Entered {
+	if ticket.Entered {
 		return errs.NewBadRequest(ctx, "Ticket already validated")
 	}
 
-	event.Entered = true
-	event.UpdatedAt = time.Now()
+	ticket.Entered = true
+	ticket.UpdatedAt = time.Now()
 
-	updatedEvent, err := t.ticketRepo.Validate(context, event)
-	if err != nil {
-		logs.Error("TicketHandler.Validate: Failed to update ticket", err)
-		return errs.NewInternalServerError(ctx, "Failed to update ticket")
-	}
+	t.ticketRepo.Validate(context, ticket)
 
-	return ctx.Status(fiber.StatusOK).JSON(
+	return ctx.Status(fiber.StatusNoContent).JSON(
 		responses.NewTicketResponse(
-			fiber.StatusOK,
+			fiber.StatusNoContent,
 			"Ticket updated successfully",
-			[]*entities.Ticket{updatedEvent},
+			[]*entities.Ticket{},
 		))
 }
 
-// Create implements TicketHandler.
 func (t *ticketHandler) Create(ctx *fiber.Ctx) error {
 	context, cancel := t.newContext()
 	defer cancel()
+
+	token := strings.TrimPrefix(ctx.Get("Authorization"), "Bearer ")
+	accountID, err := t.tokenization.GetAccountID(token)
+	if err != nil {
+		logs.Error("TicketHandler.Create: Invalid ID parameter", err)
+		return errs.NewBadRequest(ctx, "Invalid parameter")
+	}
 
 	id, err := uuid.Parse(ctx.Params("id"))
 	if err != nil {
@@ -103,11 +112,13 @@ func (t *ticketHandler) Create(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
 	}
 
-	createdTicket, err := t.ticketRepo.Create(context, entities.NewTicket(event.ID))
+	createdTicket, err := t.ticketRepo.Create(context, entities.NewTicket(event.ID, accountID))
 	if err != nil {
 		logs.Error("TicketHandler.Create: Failed to create Ticket", err)
 		return errs.NewInternalServerError(ctx, "Failed to create Ticket")
 	}
+
+	createdTicket.Event = event
 
 	return ctx.Status(fiber.StatusCreated).JSON(
 		responses.NewTicketResponse(
@@ -117,10 +128,16 @@ func (t *ticketHandler) Create(ctx *fiber.Ctx) error {
 		))
 }
 
-// Delete implements TicketHandler.
 func (t *ticketHandler) Delete(ctx *fiber.Ctx) error {
 	context, cancel := t.newContext()
 	defer cancel()
+
+	token := strings.TrimPrefix(ctx.Get("Authorization"), "Bearer ")
+	accountID, err := t.tokenization.GetAccountID(token)
+	if err != nil {
+		logs.Error("TicketHandler.Create: Invalid ID parameter", err)
+		return errs.NewBadRequest(ctx, "Invalid parameter")
+	}
 
 	id, err := uuid.Parse(ctx.Params("id"))
 	if err != nil {
@@ -128,7 +145,7 @@ func (t *ticketHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	event, err := t.ticketRepo.FindByID(context, id)
+	ticket, err := t.ticketRepo.FindByID(context, id, accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errs.NewNotFound(ctx, "Ticket not found")
@@ -137,7 +154,7 @@ func (t *ticketHandler) Delete(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve tickets")
 	}
 
-	err = t.ticketRepo.Delete(context, event.ID)
+	err = t.ticketRepo.Delete(context, ticket.ID, ticket.AccountID)
 	if err != nil {
 		logs.Error("TicketHandler.Delete: Failed to delete ticket", err)
 		return errs.NewInternalServerError(ctx, "Failed to delete ticket")
@@ -151,32 +168,61 @@ func (t *ticketHandler) Delete(ctx *fiber.Ctx) error {
 		))
 }
 
-// FindAll implements TicketHandler.
 func (t *ticketHandler) FindAll(ctx *fiber.Ctx) error {
 	context, cancel := t.newContext()
 	defer cancel()
 
-	events, err := t.ticketRepo.FindAll(context)
+	token := strings.TrimPrefix(ctx.Get("Authorization"), "Bearer ")
+	accountID, err := t.tokenization.GetAccountID(token)
+	if err != nil {
+		logs.Error("TicketHandler.Create: Invalid ID parameter", err)
+		return errs.NewBadRequest(ctx, "Invalid parameter")
+	}
+
+	tickets, err := t.ticketRepo.FindAll(context, accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return errs.NewNotFound(ctx, "No tickets found")
+			return errs.NewNotFound(ctx, "Ticket not found")
 		}
 
 		logs.Error("TicketHandler.FindAll: Failed to retrieve tickets", err)
 		return errs.NewInternalServerError(ctx, "Failed to retrieve tickets")
 	}
 
+	if len(tickets) == 0 {
+		return errs.NewNotFound(ctx, "Ticket not found")
+	}
+
+	for _, ticket := range tickets {
+		event, err := t.eventRepo.FindByID(context, ticket.EventID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return errs.NewNotFound(ctx, "Event not found")
+			}
+			logs.Error("TicketHandler.FindAll: Failed to retrieve event for ticket", err)
+			return errs.NewInternalServerError(ctx, "Failed to retrieve events for tickets")
+		}
+
+		ticket.Event = event
+	}
+
 	return ctx.Status(fiber.StatusOK).JSON(responses.NewTicketResponse(
 		fiber.StatusOK,
 		"Tickets retrieved successfully",
-		events,
+		tickets,
 	))
 }
 
-// FindByID implements TicketHandler.
 func (t *ticketHandler) FindByID(ctx *fiber.Ctx) error {
 	context, cancel := t.newContext()
 	defer cancel()
+
+	token := strings.TrimPrefix(ctx.Get("Authorization"), "Bearer ")
+	accountID, err := t.tokenization.GetAccountID(token)
+	if err != nil {
+		logs.Error("TicketHandler.Create: Invalid ID parameter", err)
+		return errs.NewBadRequest(ctx, "Invalid parameter")
+	}
 
 	id, err := uuid.Parse(ctx.Params("id"))
 	if err != nil {
@@ -184,7 +230,7 @@ func (t *ticketHandler) FindByID(ctx *fiber.Ctx) error {
 		return errs.NewBadRequest(ctx, "Invalid parameter")
 	}
 
-	event, err := t.ticketRepo.FindByID(context, id)
+	ticket, err := t.ticketRepo.FindByID(context, id, accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return errs.NewNotFound(ctx, "Ticket not found")
@@ -193,29 +239,41 @@ func (t *ticketHandler) FindByID(ctx *fiber.Ctx) error {
 		return errs.NewInternalServerError(ctx, "Failed to retrieve tickets")
 	}
 
+	event, err := t.eventRepo.FindByID(context, ticket.EventID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errs.NewNotFound(ctx, "Event not found")
+		}
+		logs.Error("TicketHandler.FindByID: Failed to retrieve event by ID", err)
+		return errs.NewInternalServerError(ctx, "Failed to retrieve events")
+	}
+
+	ticket.Event = event
+
 	return ctx.Status(fiber.StatusOK).JSON(responses.NewTicketResponse(
 		fiber.StatusOK,
 		"Ticket retrieved successfully",
-		[]*entities.Ticket{event},
+		[]*entities.Ticket{ticket},
 	))
 }
 
-// NewTicketHandler creates a new instance of TicketHandler and sets up the Ticket routes.
-func NewTicketHandler(router fiber.Router, ticketRepo repositories.TicketRepository, eventRepo repositories.EventRepository) TicketHandler {
+func NewTicketHandler(router fiber.Router, ticketRepo repositories.TicketRepository, eventRepo repositories.EventRepository, tokenization services.Tokenization) TicketHandler {
 	handler := &ticketHandler{
-		ticketRepo: ticketRepo,
-		eventRepo:  eventRepo,
+		ticketRepo:   ticketRepo,
+		eventRepo:    eventRepo,
+		tokenization: tokenization,
 	}
 
-	TicketRoutes := router.Group("/api/tickets")
+	ticketRoutes := router.Group("/api/tickets")
 
-	TicketRoutes.Use(middlewares.Logger())
+	ticketRoutes.Use(middlewares.Logger())
+	ticketRoutes.Use(middlewares.Auth(tokenization))
 
-	TicketRoutes.Get("/", handler.FindAll)      // Retrieve all Tickets
-	TicketRoutes.Post("/:id", handler.Create)   // Create a new Ticket
-	TicketRoutes.Get("/:id", handler.FindByID)  // Retrieve an Ticket by ID
-	TicketRoutes.Delete("/:id", handler.Delete) // Delete an Ticket by ID
-	TicketRoutes.Put("/:id", handler.Validate)  // Validate a ticket
+	ticketRoutes.Get("/", handler.FindAll)   
+	ticketRoutes.Post("/:id", handler.Create)   // Create a new Ticket
+	ticketRoutes.Get("/:id", handler.FindByID)  // Retrieve an Ticket by ID
+	ticketRoutes.Delete("/:id", handler.Delete) // Delete an Ticket by ID
+	ticketRoutes.Put("/:id", handler.Validate)  // Validate a ticket
 
 	return handler
 }

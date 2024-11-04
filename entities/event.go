@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Event represents an event.
 type Event struct {
 	ID        uuid.UUID `db:"id" json:"id" valid:"uuid"`
 	Title     string    `db:"title" json:"title" valid:"string,required"`
@@ -16,7 +15,6 @@ type Event struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at" valid:"required"`
 }
 
-// NewEvent creates a new instance of Event.
 func NewEvent(title, location string, date time.Time) *Event {
 	return &Event{
 		ID:        uuid.New(),

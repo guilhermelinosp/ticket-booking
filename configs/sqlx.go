@@ -6,11 +6,9 @@ import (
 	"os"
 
 	"github.com/jmoiron/sqlx"
-	// Import the PostgreSQL driver for sqlx
 	_ "github.com/lib/pq"
 )
 
-// GetReaderSqlx establishes a connection to the PostgreSQL database for reading
 func GetReaderSqlx() *sqlx.DB {
 	connStr := buildConnectionString()
 	reader := sqlx.MustConnect("postgres", connStr)
@@ -18,7 +16,6 @@ func GetReaderSqlx() *sqlx.DB {
 	return reader
 }
 
-// GetWriterSqlx establishes a connection to the PostgreSQL database for writing
 func GetWriterSqlx() *sqlx.DB {
 	connStr := buildConnectionString()
 	writer := sqlx.MustConnect("postgres", connStr)
@@ -26,7 +23,6 @@ func GetWriterSqlx() *sqlx.DB {
 	return writer
 }
 
-// buildConnectionString constructs the PostgreSQL connection string
 func buildConnectionString() string {
 	user := os.Getenv("DB_USER")
 	password := url.QueryEscape(os.Getenv("DB_PASSWORD"))

@@ -10,6 +10,7 @@ import (
 	"ticket-booking/entities"
 	"ticket-booking/middlewares"
 	"ticket-booking/repositories"
+	"ticket-booking/services"
 
 	"time"
 
@@ -28,7 +29,9 @@ type EventHandler interface {
 
 // EventHandler handles the event routes.
 type eventHandler struct {
-	repository repositories.EventRepository
+	repository   repositories.EventRepository
+	tokenization services.Tokenization
+	cryptography services.Cryptography
 }
 
 // NewContext creates a new context with a timeout of 5 seconds.
@@ -204,7 +207,7 @@ func (h *eventHandler) Delete(ctx *fiber.Ctx) error {
 }
 
 // NewEventHandler creates a new instance of EventHandler and sets up the event routes.
-func NewEventHandler(router fiber.Router, repository repositories.EventRepository) EventHandler {
+func NewEventHandler(router fiber.Router, repository repositories.EventRepository, tokenization services.Tokenization) EventHandler {
 	handler := &eventHandler{
 		repository: repository,
 	}
@@ -212,6 +215,7 @@ func NewEventHandler(router fiber.Router, repository repositories.EventRepositor
 	eventRoutes := router.Group("/api/events")
 
 	eventRoutes.Use(middlewares.Logger())
+	eventRoutes.Use(middlewares.Auth(tokenization))
 
 	eventRoutes.Get("/", handler.FindAll)      // Retrieve all events
 	eventRoutes.Post("/", handler.Create)      // Create a new event
