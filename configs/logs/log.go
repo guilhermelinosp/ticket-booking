@@ -1,6 +1,7 @@
 package logs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,6 +62,10 @@ func Request(method, path string, status int, duration string) {
 		zap.Int("status", status),
 		zap.String("duration", duration),
 	)
+	logMessage := fmt.Sprintf("HTTP Request - Method: %s, Path: %s, Status: %d, Duration: %s",
+		method, path, status, duration)
+
+	fmt.Println(logMessage)
 }
 
 func Info(message string, tags ...zap.Field) {
