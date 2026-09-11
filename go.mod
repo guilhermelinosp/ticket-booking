@@ -1,6 +1,6 @@
 module ticket-booking
 
-go 1.23.2
+go 1.27.0
 
 require (
 	github.com/go-playground/validator/v10 v10.22.1
